@@ -90,9 +90,6 @@ func writeKeyStore(ks keystore.KeyStore, filename string, password []byte) {
 
 func main() {
 
-	password := []byte{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'}
-	defer zeroing(password)
-
 	ct := time.Now()
 
 	a := app.New()
@@ -129,17 +126,36 @@ func main() {
 		}),
 		widget.NewButton("generate key store", func() {
 			dialog.ShowFileSave(func(uc fyne.URIWriteCloser, err error) {
-
-				if err := ks.SetPrivateKeyEntry("pk", pk, password); err != nil {
-					panic(err)
+				var popUp *widget.PopUp
+				entry := widget.NewPasswordEntry()
+				form := &widget.Form{
+					Items: []*widget.FormItem{
+						{Text: "Password", Widget: entry}},
+					OnCancel: func() {
+						log.Println("cancelled")
+					},
+					OnSubmit: func() {
+						log.Println("password:", entry.Text)
+						password := []byte(entry.Text)
+						defer zeroing(password)
+						if err := ks.SetPrivateKeyEntry("pk", pk, password); err != nil {
+							panic(err)
+						}
+						fileExt := uc.URI().Extension()
+						filepath := uc.URI().Path()
+						if strings.EqualFold(".jks", fileExt) || strings.EqualFold(".jceks", fileExt) {
+							writeKeyStore(ks, filepath, password)
+							popUp.Hide()
+						} else {
+							log.Fatal("file not saved successfully due to incorrect file extension")
+						}
+					},
 				}
-				fileExt := uc.URI().Extension()
-				filepath := uc.URI().Path()
-				if strings.EqualFold(".jks", fileExt) || strings.EqualFold(".jceks", fileExt) {
-					writeKeyStore(ks, filepath, password)
-				} else {
-					log.Fatal("file not saved successfully due to incorrect file extension")
-				}
+				// w.SetContent(form)
+				// w.Canvas().Overlays().Add(form)
+				// w.Canvas().Overlays().Top().Position()
+				popUp = widget.NewModalPopUp(form, w.Canvas())
+				popUp.Show()
 			}, w)
 
 		}),
