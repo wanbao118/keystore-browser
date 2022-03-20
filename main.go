@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/pem"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -107,7 +106,7 @@ func main() {
 		label,
 		widget.NewButton("select certificate pem file", func() {
 			dialog.ShowFileOpen(func(certUri fyne.URIReadCloser, err error) {
-				fmt.Println("open dialog to select file:", certUri.URI().Path())
+				log.Println("open dialog to select file: %w", certUri.URI().Path())
 				certificate := readCertificate(certUri.URI().Path())
 				pk.CertificateChain = []keystore.Certificate{
 					{
@@ -119,13 +118,16 @@ func main() {
 		}),
 		widget.NewButton("select private key pem file", func() {
 			dialog.ShowFileOpen(func(keyUri fyne.URIReadCloser, err error) {
-				fmt.Println("open dialog to select file:", keyUri.URI().Path())
+				log.Println("open dialog to select file: %w", keyUri.URI().Path())
 				privateKey := readPrivateKey(keyUri.URI().Path())
 				pk.PrivateKey = privateKey
 			}, w)
 		}),
 		widget.NewButton("generate key store", func() {
 			dialog.ShowFileSave(func(uc fyne.URIWriteCloser, err error) {
+				fileExt := uc.URI().Extension()
+				filepath := uc.URI().Path()
+
 				var popUp *widget.PopUp
 				entry := widget.NewPasswordEntry()
 				form := &widget.Form{
@@ -133,6 +135,8 @@ func main() {
 						{Text: "Password", Widget: entry}},
 					OnCancel: func() {
 						log.Println("cancelled")
+						os.Remove(filepath)
+						popUp.Hide()
 					},
 					OnSubmit: func() {
 						log.Println("password:", entry.Text)
@@ -141,8 +145,7 @@ func main() {
 						if err := ks.SetPrivateKeyEntry("pk", pk, password); err != nil {
 							panic(err)
 						}
-						fileExt := uc.URI().Extension()
-						filepath := uc.URI().Path()
+
 						if strings.EqualFold(".jks", fileExt) || strings.EqualFold(".jceks", fileExt) {
 							writeKeyStore(ks, filepath, password)
 							popUp.Hide()
@@ -151,9 +154,7 @@ func main() {
 						}
 					},
 				}
-				// w.SetContent(form)
-				// w.Canvas().Overlays().Add(form)
-				// w.Canvas().Overlays().Top().Position()
+
 				popUp = widget.NewModalPopUp(form, w.Canvas())
 				popUp.Show()
 			}, w)
