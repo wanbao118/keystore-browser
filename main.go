@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 
@@ -18,6 +19,9 @@ import (
 )
 
 type nonRand struct{}
+
+var certStr binding.String = binding.NewString()
+var privateKeyStr binding.String = binding.NewString()
 
 func (r nonRand) Read(p []byte) (n int, err error) {
 	for i := range p {
@@ -39,6 +43,8 @@ func readPrivateKey(filepath string) []byte {
 		panic(err)
 	}
 
+	privateKeyStr.Set(string(pkPEM))
+
 	b, _ := pem.Decode(pkPEM)
 	if b == nil {
 		log.Fatal("should have at least one pem block")
@@ -56,6 +62,8 @@ func readCertificate(filepath string) []byte {
 	if err != nil {
 		panic(err)
 	}
+
+	certStr.Set(string(pkPEM))
 
 	b, _ := pem.Decode(pkPEM)
 	if b == nil {
@@ -89,19 +97,23 @@ func writeKeyStore(ks keystore.KeyStore, filename string, password []byte) {
 
 func main() {
 
-	ct := time.Now()
-
 	a := app.New()
 	w := a.NewWindow("Keystore Browser")
 	w.Resize(fyne.NewSize(600, 600))
 	label := widget.NewLabel("open a pem file")
+
+	certText := widget.NewEntryWithData(certStr)
+
+	privateKeyText := widget.NewEntryWithData(privateKeyStr)
+
 	pk := keystore.PrivateKeyEntry{
-		CreationTime: ct,
+		CreationTime: time.Now(),
 	}
 	ks := keystore.New(
 		keystore.WithOrderedAliases(),
 		keystore.WithCustomRandomNumberGenerator(nonRand{}),
 	)
+
 	w.SetContent(container.NewVBox(
 		label,
 		widget.NewButton("select certificate pem file", func() {
@@ -114,15 +126,22 @@ func main() {
 						Content: certificate,
 					},
 				}
+				certText.MinSize().Add(fyne.NewSize(0, 20))
+				certText.Refresh()
 			}, w)
 		}),
+		certText,
 		widget.NewButton("select private key pem file", func() {
 			dialog.ShowFileOpen(func(keyUri fyne.URIReadCloser, err error) {
 				log.Println("open dialog to select file: %w", keyUri.URI().Path())
+
 				privateKey := readPrivateKey(keyUri.URI().Path())
 				pk.PrivateKey = privateKey
+				privateKeyText.MinSize().Add(fyne.NewSize(0, 20))
+				privateKeyText.Refresh()
 			}, w)
 		}),
+		privateKeyText,
 		widget.NewButton("generate key store", func() {
 			dialog.ShowFileSave(func(uc fyne.URIWriteCloser, err error) {
 				fileExt := uc.URI().Extension()
